@@ -6,7 +6,11 @@ description: >
 
 examples:
   delta_analysis:
-    description: "Run CodeScene Delta Analysis"
+    description: >
+      Run CodeScene Delta Analysis.
+      A context is used for specifying values for CODESCENE_HOST_URL, CODESCENE_USER, CODESCENE_PASSWORD and GITHUB_API_TOKEN.
+      The value for CODESCENE_DELTA_ANALYSIS_URL is project specific, and the value 
+      it should be set to is available in the CodeScene project settings.
     usage:
       version: 2.1
       orbs:
@@ -16,9 +20,13 @@ examples:
         my-workflow:
           jobs:
             - codescene-ci-cd/run-delta-analysis:
+                # The context specifies values for:
+                #   CODESCENE_HOST_URL, CODESCENE_USER, CODESCENE_PASSWORD and GITHUB_API_TOKEN
                 context: codescene-ci-cd
                 codescene-user: ${CODESCENE_USER}
-                codescene-delta-analysis-url: ${CODESCENE_URL}${CODESCENE_DELTA_ANALYSIS_URL}
+                # CODESCENE_DELTA_ANALYSIS_URL is project specific. 
+                # The value it should be set to is available in the CodeScene project settings 
+                codescene-delta-analysis-url: ${CODESCENE_HOST_URL}${CODESCENE_DELTA_ANALYSIS_URL}
 
 jobs:
   run-delta-analysis:
