@@ -1,0 +1,136 @@
+version: 2.1
+
+description: >
+  Run CodeScene Delta Analysis on commits and pull requests.
+  See this orb's source: https://github.com/empear-analytics/codescene-ci-cd-orb
+
+examples:
+  delta_analysis:
+    description: "Run CodeScene Delta Analysis"
+    usage:
+      version: 2.1
+      orbs:
+        codescene-ci-cd: empear/codescene-ci-cd
+      workflows:
+        version: 2
+        my-workflow:
+          jobs:
+            - codescene-ci-cd/run-delta-analysis:
+                context: codescene-ci-cd
+                codescene-user: ${CODESCENE_USER}
+                codescene-delta-analysis-url: ${CODESCENE_URL}${CODESCENE_DELTA_ANALYSIS_URL}
+
+jobs:
+  run-delta-analysis:
+    description: >
+      Run CodeScene Delta Analysis.
+      Requires environment variables for the CodeScene password and GitHub API Token.
+    parameters:
+      codescene-delta-analysis-url:
+        description: # The CodeScene delta analysis API URL
+        type: string
+      codescene-user:
+        description: # The name of the codescene user
+        type: string
+      codescene-password-key:
+        description: # The name of the environment variable containing the codescene password
+        type: env_var_name
+        default: CODESCENE_PASSWORD
+      coupling-threshold-percent:
+        description: # The coupling threshold used for analysis
+        type: integer
+        default: 80
+      risk-threshold:
+        description: # The risk threshold used for analysis
+        type: integer
+        default: 7
+      http-timeout:
+        description: # The timeout in ms for http calls
+        type: integer
+        default: 30000
+      github-api-url:
+        description: # The GitHub API URL
+        type: string
+        default: https://api.github.com
+      github-api-token-key:
+        description: # The name of the environment variable containing the GitHub token
+        type: env_var_name
+        default: GITHUB_API_TOKEN
+    executor: codescene-ci-cd-executor
+    steps:
+      - checkout
+      - run:
+          name: Install required packages
+          command:
+            apk --no-cache add curl jq
+      - run: 
+          name: CodeScene Delta Analysis
+          command: |
+            if [[ -z ${CIRCLE_PULL_REQUEST} ]] ; then 
+              PREVIOUS_COMMIT=$(git rev-parse HEAD^)
+
+              if [[ -z ${PREVIOUS_COMMIT} ]] ; then 
+                echo "Failed to get previous commit!"
+                exit 1
+              fi
+
+              java -jar /codescene-ci-cd/codescene-ci-cd-standalone.jar \
+                --codescene-delta-analysis-url << parameters.codescene-delta-analysis-url >> \
+                --codescene-user << parameters.codescene-user >> \
+                --codescene-password ${<< parameters.codescene-password-key >>-not-set} \
+                --codescene-repository ${CIRCLE_PROJECT_REPONAME} \
+                --fail-on-failed-goal \
+                --fail-on-declining-code-health \
+                --analyze-individual-commits \
+                --coupling-threshold-percent << parameters.coupling-threshold-percent >> \
+                --risk-threshold << parameters.risk-threshold >>   \
+                --current-commit ${CIRCLE_SHA1} \
+                --previous-commit ${PREVIOUS_COMMIT} \
+                --http-timeout << parameters.http-timeout >> \
+                --log-result;
+            else
+              PULL_REQUEST_ID=${CIRCLE_PULL_REQUEST##*/}
+
+              if [[ -z ${PULL_REQUEST_ID} ]] ; then 
+                echo "Failed to get pull request id!"
+                exit 1
+              fi
+
+              PR_URL="<< parameters.github-api-url >>/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PULL_REQUEST_ID"
+              TARGET_BRANCH=$(curl -s -X GET -G $PR_URL -H "Authorization:"" token ${<< parameters.github-api-token-key >>-not-set}" | jq '.base.ref' | tr -d '"')
+              
+              if [[ -z ${TARGET_BRANCH} ]] ; then 
+                echo "Failed to get target branch!"
+                exit 1
+              fi
+              
+              java -jar /codescene-ci-cd/codescene-ci-cd-standalone.jar \
+                --codescene-delta-analysis-url << parameters.codescene-delta-analysis-url >> \
+                --codescene-user << parameters.codescene-user >> \
+                --codescene-password ${<< parameters.codescene-password-key >>-not-set} \
+                --codescene-repository ${CIRCLE_PROJECT_REPONAME} \
+                --fail-on-failed-goal \
+                --fail-on-declining-code-health \
+                --analyze-branch-diff \
+                --coupling-threshold-percent << parameters.coupling-threshold-percent >> \
+                --risk-threshold << parameters.risk-threshold >>   \
+                --current-commit ${CIRCLE_SHA1} \
+                --base-revision ${TARGET_BRANCH} \
+                --create-github-comment \
+                --github-api-url << parameters.github-api-url >> \
+                --github-api-token ${<< parameters.github-api-token-key >>-not-set} \
+                --github-owner ${CIRCLE_PROJECT_USERNAME} \
+                --github-repo ${CIRCLE_PROJECT_REPONAME} \
+                --github-pull-request-id ${PULL_REQUEST_ID} \
+                --http-timeout << parameters.http-timeout >> \
+                --log-result;
+            fi
+
+executors:
+  codescene-ci-cd-executor:
+    parameters:
+      version:
+        type: string
+        default: "1.0.0"
+    docker:
+      - image: empear/codescene-ci-cd:<<parameters.version>>
