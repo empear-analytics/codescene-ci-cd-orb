@@ -6,6 +6,10 @@ description: >
 
 examples:
   delta_analysis:
+    # rather than representing these env vars as their default values, i'd suggest calling them parameters & referring to them
+    # by their parameter name, e.g., `codescene-host-url`, `codescene-user`, `codescene-password`, etc. 
+    # i see that not all of these env vars are actually parameterized—i recommend doing so for all of them, so users aren't
+    # locked into using your env var names
     description: >
       Run CodeScene Delta Analysis.
       A context is used for specifying values for CODESCENE_HOST_URL, CODESCENE_USER, CODESCENE_PASSWORD and GITHUB_API_TOKEN.
@@ -15,6 +19,8 @@ examples:
       version: 2.1
       orbs:
         codescene-ci-cd: empear/codescene-ci-cd
+        # shouldprovide at least an example of calling a version ^^ here
+        # no orb can be called without one—we usually use @x.y.z, to show folks how orb SemVer works
       workflows:
         version: 2
         my-workflow:
