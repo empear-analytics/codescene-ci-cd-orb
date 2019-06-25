@@ -8,62 +8,89 @@ examples:
   delta_analysis:
     description: >
       Run CodeScene Delta Analysis.
-      A context is used for specifying values for CODESCENE_HOST_URL, CODESCENE_USER, CODESCENE_PASSWORD and GITHUB_API_TOKEN.
+      A context is used for specifying values for CODESCENE_USER, CODESCENE_PASSWORD and GITHUB_API_TOKEN.
       The value for CODESCENE_DELTA_ANALYSIS_URL is project specific, and the value 
       it should be set to is available in the CodeScene project settings.
     usage:
       version: 2.1
       orbs:
-        codescene-ci-cd: empear/codescene-ci-cd
+        codescene-ci-cd: empear/codescene-ci-cd@x.y.z
       workflows:
         version: 2
         my-workflow:
           jobs:
             - codescene-ci-cd/run-delta-analysis:
-                # The context specifies values for:
-                #   CODESCENE_HOST_URL, CODESCENE_USER, CODESCENE_PASSWORD and GITHUB_API_TOKEN
                 context: codescene-ci-cd
-                codescene-user: ${CODESCENE_USER}
-                # CODESCENE_DELTA_ANALYSIS_URL is project specific. 
-                # The value it should be set to is available in the CodeScene project settings 
-                codescene-delta-analysis-url: ${CODESCENE_HOST_URL}${CODESCENE_DELTA_ANALYSIS_URL}
+
+  delta_analysis_with_custom_values:
+    description: >
+      Run CodeScene Delta Analysis.
+      Custom values for parameters are specified directly on the job.
+    usage:
+      version: 2.1
+      orbs:
+        codescene-ci-cd: empear/codescene-ci-cd@x.y.z
+      workflows:
+        version: 2
+        my-workflow:
+          jobs:
+            - codescene-ci-cd/run-delta-analysis:
+                codescene-delta-analysis-url: ${MY_DELTA_ANALYSIS_URL_ENV_VAR}
+                codescene-user: ${MY_CODESCENE_USER_ENV_VAR}
+                codescene-password: ${MY_CODESCENE_PASSWORD_ENV_VAR}
+                github-api-token: ${MY_GITHUB_API_TOKEN_ENV_VAR}
 
 jobs:
   run-delta-analysis:
     description: >
       Run CodeScene Delta Analysis.
-      Requires environment variables for the CodeScene password and GitHub API Token.
+      Requires setting the codescene-delta-analysis-url, codescene-user, codescene-password and github-api-token parameters,
+      either explicitly or by setting the corresponding environment variables using the CircleCI UI
     parameters:
       codescene-delta-analysis-url:
-        description: # The CodeScene delta analysis API URL
+        description: >
+          The CodeScene delta analysis API URL. 
+          Set the parameter or use the CircleCI UI to add the value to the 'CODESCENE_DELTA_ANALYSIS_URL' env variable.
         type: string
+        default: ${CODESCENE_DELTA_ANALYSIS_URL-not-set}
       codescene-user:
-        description: # The name of the codescene user
+        description: >
+          The name of a CodeScene user.
+          Set the parameter or use the CircleCI UI to add the value to the 'CODESCENE_USER' env variable.
         type: string
-      codescene-password-key:
-        description: # The name of the environment variable containing the codescene password
-        type: env_var_name
-        default: CODESCENE_PASSWORD
+        default: ${CODESCENE_USER-not-set}
+      codescene-password:
+        description: >
+          The password for the specified CodeScene user
+          Set the parameter or use the CircleCI UI to add the value to the 'CODESCENE_PASSWORD' env variable.
+        type: string
+        default: ${CODESCENE_PASSWORD-not-set}
       coupling-threshold-percent:
-        description: # The coupling threshold used for analysis
+        description: >
+          The coupling threshold (percent) used for analysis.
         type: integer
         default: 80
       risk-threshold:
-        description: # The risk threshold used for analysis
+        description: >
+          The risk threshold (1-10) used for the high risk gate.
         type: integer
         default: 7
       http-timeout:
-        description: # The timeout in ms for http calls
+        description: >
+          The timeout in ms for http calls.
         type: integer
         default: 30000
       github-api-url:
-        description: # The GitHub API URL
+        description: >
+          The GitHub API URL
         type: string
         default: https://api.github.com
-      github-api-token-key:
-        description: # The name of the environment variable containing the GitHub token
-        type: env_var_name
-        default: GITHUB_API_TOKEN
+      github-api-token:
+        description: >
+          A GitHub API token with permissions to add comments to merge requests.
+          Set the parameter or use the CircleCI UI to add the value to the 'GITHUB_API_TOKEN' env variable.
+        type: string
+        default: ${GITHUB_API_TOKEN-not-set}
     executor: codescene-ci-cd-executor
     steps:
       - checkout
@@ -85,7 +112,7 @@ jobs:
               java -jar /codescene-ci-cd/codescene-ci-cd-standalone.jar \
                 --codescene-delta-analysis-url << parameters.codescene-delta-analysis-url >> \
                 --codescene-user << parameters.codescene-user >> \
-                --codescene-password ${<< parameters.codescene-password-key >>-not-set} \
+                --codescene-password << parameters.codescene-password >> \
                 --codescene-repository ${CIRCLE_PROJECT_REPONAME} \
                 --fail-on-failed-goal \
                 --fail-on-declining-code-health \
@@ -105,7 +132,7 @@ jobs:
               fi
 
               PR_URL="<< parameters.github-api-url >>/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PULL_REQUEST_ID"
-              TARGET_BRANCH=$(curl -s -X GET -G $PR_URL -H "Authorization:"" token ${<< parameters.github-api-token-key >>-not-set}" | jq '.base.ref' | tr -d '"')
+              TARGET_BRANCH=$(curl -s -X GET -G $PR_URL -H "Authorization:"" token << parameters.github-api-token >>" | jq '.base.ref' | tr -d '"')
               
               if [[ -z ${TARGET_BRANCH} ]] ; then 
                 echo "Failed to get target branch!"
@@ -115,7 +142,7 @@ jobs:
               java -jar /codescene-ci-cd/codescene-ci-cd-standalone.jar \
                 --codescene-delta-analysis-url << parameters.codescene-delta-analysis-url >> \
                 --codescene-user << parameters.codescene-user >> \
-                --codescene-password ${<< parameters.codescene-password-key >>-not-set} \
+                --codescene-password << parameters.codescene-password >> \
                 --codescene-repository ${CIRCLE_PROJECT_REPONAME} \
                 --fail-on-failed-goal \
                 --fail-on-declining-code-health \
@@ -126,7 +153,7 @@ jobs:
                 --base-revision ${TARGET_BRANCH} \
                 --create-github-comment \
                 --github-api-url << parameters.github-api-url >> \
-                --github-api-token ${<< parameters.github-api-token-key >>-not-set} \
+                --github-api-token << parameters.github-api-token >> \
                 --github-owner ${CIRCLE_PROJECT_USERNAME} \
                 --github-repo ${CIRCLE_PROJECT_REPONAME} \
                 --github-pull-request-id ${PULL_REQUEST_ID} \
