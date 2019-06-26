@@ -8,9 +8,11 @@ examples:
   delta_analysis:
     description: >
       Run CodeScene Delta Analysis.
-      A context is used for specifying values for CODESCENE_USER, CODESCENE_PASSWORD and GITHUB_API_TOKEN.
-      The value for CODESCENE_DELTA_ANALYSIS_URL is project specific, and the value 
-      it should be set to is available in the CodeScene project settings.
+      A context is used for specifying values for codescene-user, codescene-password and 
+      github-api-token by setting their default environment variables.
+      The value for codescene-delta-analysis-url is project specific and is specified by 
+      setting the default environment variable in the project settings. 
+      The value it should be set to is available in the CodeScene project settings.
     usage:
       version: 2.1
       orbs:
@@ -52,19 +54,19 @@ jobs:
           The CodeScene delta analysis API URL. 
           Set the parameter or use the CircleCI UI to add the value to the 'CODESCENE_DELTA_ANALYSIS_URL' env variable.
         type: string
-        default: ${CODESCENE_DELTA_ANALYSIS_URL-not-set}
+        default: ${CODESCENE_DELTA_ANALYSIS_URL}
       codescene-user:
         description: >
           The name of a CodeScene user.
           Set the parameter or use the CircleCI UI to add the value to the 'CODESCENE_USER' env variable.
         type: string
-        default: ${CODESCENE_USER-not-set}
-      codescene-password:
+        default: ${CODESCENE_USER}
+      codescene-password-key:
         description: >
-          The password for the specified CodeScene user
-          Set the parameter or use the CircleCI UI to add the value to the 'CODESCENE_PASSWORD' env variable.
-        type: string
-        default: ${CODESCENE_PASSWORD-not-set}
+          The name of an env variable containing the codescene password. 
+          Use the CircleCI UI to add a value to the env variable.
+        type: env_var_name
+        default: CODESCENE_PASSWORD
       coupling-threshold-percent:
         description: >
           The coupling threshold (percent) used for analysis.
@@ -85,12 +87,13 @@ jobs:
           The GitHub API URL
         type: string
         default: https://api.github.com
-      github-api-token:
+      github-api-token-key:
         description: >
-          A GitHub API token with permissions to add comments to merge requests.
-          Set the parameter or use the CircleCI UI to add the value to the 'GITHUB_API_TOKEN' env variable.
-        type: string
-        default: ${GITHUB_API_TOKEN-not-set}
+          The name of an env variable containing a GitHub API token with permissions 
+          to add comments to merge requests. 
+          Use the CircleCI UI to add a value to the env variable.
+        type: env_var_name
+        default: GITHUB_API_TOKEN
     executor: codescene-ci-cd-executor
     steps:
       - checkout
@@ -101,18 +104,64 @@ jobs:
       - run: 
           name: CodeScene Delta Analysis
           command: |
+
+            if [[ -z "<< parameters.codescene-delta-analysis-url >>" ]] ; then 
+              echo "No value specified for codescene-delta-analysis-url!"
+              exit 1
+            fi
+
+            if [[ -z "<< parameters.codescene-user >>" ]] ; then 
+              echo "No value specified for codescene-user!"
+              exit 1
+            fi
+
+            if [[ -z "<< parameters.codescene-password-key >>" ]] ; then 
+              echo "No value specified for codescene-password-key!"
+              exit 1
+            fi
+
+            if [[ -z "${<< parameters.codescene-password-key >>}" ]] ; then 
+              echo "No value specified for << parameters.codescene-password-key >>!"
+              exit 1
+            fi
+
+            if [[ -z "<< parameters.coupling-threshold-percent >>" ]] ; then 
+              echo "No value specified for coupling-threshold-percent!"
+              exit 1
+            fi
+
+            if [[ -z "<< parameters.risk-threshold >>" ]] ; then 
+              echo "No value specified for risk-threshold!"
+              exit 1
+            fi
+
+            if [[ -z "<< parameters.http-timeout >>" ]] ; then 
+              echo "No value specified for http-timeout!"
+              exit 1
+            fi
+
+            if [[ -z "<< parameters.github-api-url >>" ]] ; then 
+              echo "No value specified for github-api-url!"
+              exit 1
+            fi
+
+            if [[ -z "<< parameters.github-api-token-key >>" ]] ; then 
+              echo "No value specified for github-api-token-key!"
+              exit 1
+            fi
+
+            if [[ -z "${<< parameters.github-api-token-key >>}" ]] ; then 
+              echo "No value specified for << parameters.github-api-token-key >>!"
+              exit 1
+            fi
+
             if [[ -z ${CIRCLE_PULL_REQUEST} ]] ; then 
               PREVIOUS_COMMIT=$(git rev-parse HEAD^)
-
-              if [[ -z ${PREVIOUS_COMMIT} ]] ; then 
-                echo "Failed to get previous commit!"
-                exit 1
-              fi
 
               java -jar /codescene-ci-cd/codescene-ci-cd-standalone.jar \
                 --codescene-delta-analysis-url << parameters.codescene-delta-analysis-url >> \
                 --codescene-user << parameters.codescene-user >> \
-                --codescene-password << parameters.codescene-password >> \
+                --codescene-password ${<< parameters.codescene-password-key >>} \
                 --codescene-repository ${CIRCLE_PROJECT_REPONAME} \
                 --fail-on-failed-goal \
                 --fail-on-declining-code-health \
@@ -132,7 +181,8 @@ jobs:
               fi
 
               PR_URL="<< parameters.github-api-url >>/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/pulls/$PULL_REQUEST_ID"
-              TARGET_BRANCH=$(curl -s -X GET -G $PR_URL -H "Authorization:"" token << parameters.github-api-token >>" | jq '.base.ref' | tr -d '"')
+              # The extra "" in the header is necessary for passing yaml parsing (colon-space is not valid)
+              TARGET_BRANCH=$(curl -s -X GET -G $PR_URL -H "Authorization:"" token ${<< parameters.github-api-token-key >>}" | jq '.base.ref' | tr -d '"')
               
               if [[ -z ${TARGET_BRANCH} ]] ; then 
                 echo "Failed to get target branch!"
@@ -142,7 +192,7 @@ jobs:
               java -jar /codescene-ci-cd/codescene-ci-cd-standalone.jar \
                 --codescene-delta-analysis-url << parameters.codescene-delta-analysis-url >> \
                 --codescene-user << parameters.codescene-user >> \
-                --codescene-password << parameters.codescene-password >> \
+                --codescene-password ${<< parameters.codescene-password-key >>} \
                 --codescene-repository ${CIRCLE_PROJECT_REPONAME} \
                 --fail-on-failed-goal \
                 --fail-on-declining-code-health \
@@ -153,7 +203,7 @@ jobs:
                 --base-revision ${TARGET_BRANCH} \
                 --create-github-comment \
                 --github-api-url << parameters.github-api-url >> \
-                --github-api-token << parameters.github-api-token >> \
+                --github-api-token ${<< parameters.github-api-token-key >>} \
                 --github-owner ${CIRCLE_PROJECT_USERNAME} \
                 --github-repo ${CIRCLE_PROJECT_REPONAME} \
                 --github-pull-request-id ${PULL_REQUEST_ID} \
