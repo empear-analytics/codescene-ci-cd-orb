@@ -97,10 +97,6 @@ jobs:
     executor: codescene-ci-cd-executor
     steps:
       - checkout
-      - run:
-          name: Install required packages
-          command:
-            apk --no-cache add curl jq
       - run: 
           name: CodeScene Delta Analysis
           command: |
