@@ -185,7 +185,7 @@ jobs:
                 exit 1
               fi
               
-              codescene-ci-cd.sh /codescene-ci-cd/codescene-ci-cd-standalone.jar \
+              codescene-ci-cd.sh \
                 --codescene-delta-analysis-url << parameters.codescene-delta-analysis-url >> \
                 --codescene-user << parameters.codescene-user >> \
                 --codescene-password ${<< parameters.codescene-password-key >>} \
