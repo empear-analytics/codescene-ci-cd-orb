@@ -158,7 +158,7 @@ jobs:
             if [[ -z ${CIRCLE_PULL_REQUEST} ]] ; then 
               PREVIOUS_COMMIT=$(git rev-parse HEAD^)
 
-              java -jar /codescene-ci-cd/codescene-ci-cd-standalone.jar \
+              codescene-ci-cd.sh \
                 --codescene-delta-analysis-url << parameters.codescene-delta-analysis-url >> \
                 --codescene-user << parameters.codescene-user >> \
                 --codescene-password ${<< parameters.codescene-password-key >>} \
@@ -189,7 +189,7 @@ jobs:
                 exit 1
               fi
               
-              java -jar /codescene-ci-cd/codescene-ci-cd-standalone.jar \
+              codescene-ci-cd.sh /codescene-ci-cd/codescene-ci-cd-standalone.jar \
                 --codescene-delta-analysis-url << parameters.codescene-delta-analysis-url >> \
                 --codescene-user << parameters.codescene-user >> \
                 --codescene-password ${<< parameters.codescene-password-key >>} \
@@ -216,6 +216,6 @@ executors:
     parameters:
       version:
         type: string
-        default: "1.0.0"
+        default: "1.0.1"
     docker:
       - image: empear/codescene-ci-cd:<<parameters.version>>
